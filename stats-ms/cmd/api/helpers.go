@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 )
 
@@ -31,6 +32,16 @@ func (app *Config) writeJSON(w http.ResponseWriter, status int, data any, header
 		return err
 	}
 
+	return nil
+}
+
+func (app *Config) checkQueryParams(w http.ResponseWriter, r *http.Request, params ...string) error {
+	for _, param := range params {
+		if r.URL.Query().Get(param) == "" {
+			app.errorJSON(w, errors.New("missing query parameter: "+param), http.StatusBadRequest)
+			return errors.New("missing query parameter: " + param)
+		}
+	}
 	return nil
 }
 
