@@ -70,13 +70,20 @@ func (app *Config) ConsumptionReport(w http.ResponseWriter, r *http.Request, per
 		DBResponses = append(DBResponses, DBResponse{MeterId: meter_id, MeasurementsReport: measurement_report})
 	}
 
-	app.writeJSON(w, http.StatusOK, app.createAnswerResponse(DBResponses))
+	app.writeJSON(w, http.StatusOK, app.createAnswerResponse(DBResponses, period))
 }
 
-func (app *Config) createAnswerResponse(DBResponses []DBResponse) (answer DataResponse) {
+func (app *Config) createAnswerResponse(DBResponses []DBResponse, period string) (answer DataResponse) {
 	periods := make([]string, 0)
 	for _, measurement_report := range DBResponses[0].MeasurementsReport {
-		periods = append(periods, measurement_report.Period.Format("2006-01-02"))
+		if period == "day" {
+			periods = append(periods, measurement_report.Period.Format("Jan 2"))
+		} else if period == "week" {
+			time_period := measurement_report.Period.Add(time.Hour * 24 * 6)
+			periods = append(periods, measurement_report.Period.Format("Jan 2")+" - "+time_period.Format("Jan 2"))
+		} else if period == "month" {
+			periods = append(periods, measurement_report.Period.Format("Jan 2006"))
+		}
 	}
 
 	dataGraph := make([]MeterResponse, 0)
