@@ -17,7 +17,7 @@ func New(dbPool *sql.DB) Models {
 	db = dbPool
 
 	return Models{
-		Measurement: Measurement{},
+		MeasurementReport: MeasurementReport{},
 	}
 }
 
@@ -25,47 +25,64 @@ func New(dbPool *sql.DB) Models {
 // in this type is available to us throughout the application, anywhere that the
 // app variable is used, provided that the model is also added in the New function.
 type Models struct {
-	Measurement Measurement
+	MeasurementReport MeasurementReport
 }
 
-// Measurement is the structure which holds one measurement from the database.
-type Measurement struct {
-	ID                 string    `json:"id"`
-	MeterID            int       `json:"meter_id"`
-	ActiveEnergy       float64   `json:"active_energy"`
-	ReactiveEnergy     float64   `json:"reactive_energy"`
-	CapacitiveReactive float64   `json:"capacitive_reactive"`
-	Solar              float64   `json:"solar"`
-	Date               time.Time `json:"date"`
+// MeasurementReport is the structure which holds one measurement from the database.
+type MeasurementReport struct {
+	Period             time.Time `json:"period"`
+	Active             float64   `json:"active"`
+	ReactiveInductive  float64   `json:"reactive_inductive"`
+	ReactiveCapacitive float64   `json:"reactive_capacitive"`
+	Exported           float64   `json:"exported"`
 }
 
-// GetById returns one measurement from the database, based on the id provided.
-func (u *Measurement) GetById(id string) (*Measurement, error) {
+// GetConsumptionFromMeterId in a given period of time
+func (u *MeasurementReport) GetConsumptionFromMeterIdForPeriod(meterId int, startDate time.Time, endDate time.Time, period string) ([]MeasurementReport, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 
-	query := `SELECT id, meter_id, active_energy, reactive_energy, capacitive_reactive, solar, "date"
-	FROM public.measurements
-	WHERE id = $1;
+	query := `
+	SELECT 
+		DATE_TRUNC($1, date) AS period,
+		SUM(active_energy) AS active,
+		SUM(reactive_energy) AS reactive_inductive,
+		SUM(capacitive_reactive) AS reactive_capacitive,
+		SUM(solar) AS exported
+	FROM 
+		MEASUREMENTS
+	WHERE 
+		meter_id = $2 AND
+		date BETWEEN $3 AND $4
+	GROUP BY 
+		DATE_TRUNC($1, date)
+	ORDER BY 
+		period ASC;
 	`
 
-	var measurement Measurement
-	row := db.QueryRowContext(ctx, query, id)
-
-	err := row.Scan(
-		&measurement.ID,
-		&measurement.MeterID,
-		&measurement.ActiveEnergy,
-		&measurement.ReactiveEnergy,
-		&measurement.CapacitiveReactive,
-		&measurement.Solar,
-		&measurement.Date,
-	)
+	var measurements []MeasurementReport
+	rows, err := db.QueryContext(ctx, query, period, meterId, startDate, endDate)
 
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
 
-	return &measurement, nil
+	for rows.Next() {
+		var measurement MeasurementReport
+		err := rows.Scan(
+			&measurement.Period,
+			&measurement.Active,
+			&measurement.ReactiveInductive,
+			&measurement.ReactiveCapacitive,
+			&measurement.Exported,
+		)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
+		}
+		measurements = append(measurements, measurement)
+	}
+
+	return measurements, nil
 }
