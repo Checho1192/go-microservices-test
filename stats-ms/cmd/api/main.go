@@ -1,21 +1,87 @@
 package main
 
 import (
+	"database/sql"
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"stats-ms/data"
+	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	_ "github.com/jackc/pgconn"
+	_ "github.com/jackc/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+const webPort = "80"
+
+var counts int64
+
+type Config struct {
+	DB     *sql.DB
+	Models data.Models
+}
+
 func main() {
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	log.Println("Starting stats service")
 
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hello world"))
-	})
+	// connect to DB
+	conn := connectToDB()
+	if conn == nil {
+		log.Panic("Can't connect to Postgres!")
+	}
 
-	http.ListenAndServe(":80", r)
+	// set up config
+	app := Config{
+		DB:     conn,
+		Models: data.New(conn),
+	}
+
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%s", webPort),
+		Handler: app.routes(),
+	}
+
+	err := srv.ListenAndServe()
+	if err != nil {
+		log.Panic(err)
+	}
+}
+func openDB(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func connectToDB() *sql.DB {
+	dsn := os.Getenv("DSN")
+
+	for {
+		connection, err := openDB(dsn)
+		if err != nil {
+			log.Println("Postgres not yet ready ...")
+			counts++
+		} else {
+			log.Println("Connected to Postgres!")
+			return connection
+		}
+
+		if counts > 10 {
+			log.Println(err)
+			return nil
+		}
+
+		log.Println("Backing off for two seconds....")
+		time.Sleep(2 * time.Second)
+		continue
+	}
 }
