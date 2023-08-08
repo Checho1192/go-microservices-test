@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+
+  stats-microservice:
+    build:
+      context: ./../stats-ms
+      dockerfile: ./../stats-ms/stats-ms.dockerfile
+    restart: always
+    ports:
+      - "8080:80"
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      DSN: "host=postgres port=5432 user=postgres password=password dbname=sensors-measurements-db sslmode=disable timezone=UTC connect_timeout=5"
+
+
+  postgres:
+    image: 'postgres'
+    ports:
+      - "5432:5432"
+    restart: always
+    deploy:
+      mode: replicated
+      replicas: 1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sensors-measurements-db
+    volumes:
+      - ./db-data/postgres/:/var/lib/postgresql/data/
