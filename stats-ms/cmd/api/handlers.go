@@ -122,9 +122,14 @@ func (app *Config) validationInput(w http.ResponseWriter, r *http.Request) (star
 		return start_date, end_date, meter_ids, err
 	}
 
+	if start_date.After(time.Now()) {
+		app.errorJSON(w, errors.New("start_date must be before today"), http.StatusBadRequest)
+		return start_date, end_date, meter_ids, errors.New("start_date must be before today")
+	}
+
 	if end_date.Before(start_date) {
 		app.errorJSON(w, errors.New("end_date must be after start_date"), http.StatusBadRequest)
-		return start_date, end_date, meter_ids, err
+		return start_date, end_date, meter_ids, errors.New("end_date must be after start_date")
 	}
 
 	r.ParseForm()
