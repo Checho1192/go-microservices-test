@@ -1,5 +1,5 @@
 # go-microservices-test
-
+Simple Microservice REST API using go-chi and PostgreSQL DB.
 ## Requirements
 1. Install Make. You can use choco in windows `choco install make` or in mac `brew install make`
 2. Have docker compose (Docker Desktop) installed.
